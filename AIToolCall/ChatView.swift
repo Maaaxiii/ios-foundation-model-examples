@@ -14,8 +14,6 @@ struct ChatView: View {
     @StateObject private var chatManager = ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)))
     @State private var messageText = ""
     @State private var availabilityStatus: SystemLanguageModel.Availability = .unavailable(.modelNotReady)
-    @State private var showingNewChatAlert = false
-    @State private var newChatTitle = ""
     
     var body: some View {
         NavigationView {
@@ -37,17 +35,6 @@ struct ChatView: View {
         .onAppear {
             checkAvailability()
         }
-        .alert("New Chat", isPresented: $showingNewChatAlert) {
-            TextField("Chat Title", text: $newChatTitle)
-            Button("Create") {
-                createNewChat()
-            }
-            Button("Cancel", role: .cancel) {
-                newChatTitle = ""
-            }
-        } message: {
-            Text("Enter a title for your new chat")
-        }
     }
     
     private func chatInterface(for chat: Chat) -> some View {
@@ -55,15 +42,21 @@ struct ChatView: View {
             // Chat Header
             HStack {
                 VStack(alignment: .leading) {
-                    Text(chat.title)
-                        .font(.headline)
+                    HStack {
+                        Text(chat.title)
+                            .font(.headline)
+                        if chat.messages.count == 2 && (chat.title.hasPrefix("Chat ") || chat.title == "New Chat") {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                    }
                     Text("\(chat.messages.count) messages")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
                 Button("New Chat") {
-                    showingNewChatAlert = true
+                    createNewChat()
                 }
                 .buttonStyle(.bordered)
             }
@@ -146,7 +139,7 @@ struct ChatView: View {
                     }
                     .disabled(chat.messages.isEmpty)
                     
-                    Button(action: { showingNewChatAlert = true }) {
+                    Button(action: { createNewChat() }) {
                         Image(systemName: "plus")
                             .foregroundColor(.blue)
                     }
@@ -172,7 +165,7 @@ struct ChatView: View {
                 .padding(.horizontal)
             
             Button("Start New Chat") {
-                showingNewChatAlert = true
+                createNewChat()
             }
             .buttonStyle(.borderedProminent)
         }
@@ -181,9 +174,9 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: { showingNewChatAlert = true }) {
-                    Image(systemName: "plus")
-                }
+                    Button(action: { createNewChat() }) {
+                        Image(systemName: "plus")
+                    }
             }
         }
     }
@@ -214,9 +207,7 @@ struct ChatView: View {
     }
     
     private func createNewChat() {
-        let title = newChatTitle.isEmpty ? nil : newChatTitle
-        let _ = chatManager.createNewChat(title: title)
-        newChatTitle = ""
+        let _ = chatManager.createNewChat(title: "New Chat")
     }
     
     private func sendMessage() {

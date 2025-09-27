@@ -27,7 +27,7 @@ class ChatManager: ObservableObject {
     // MARK: - Chat Management
     
     func createNewChat(title: String? = nil) -> Chat {
-        let chatTitle = title ?? generateChatTitle()
+        let chatTitle = title ?? "New Chat"
         let newChat = Chat(title: chatTitle)
         modelContext.insert(newChat)
         
@@ -105,6 +105,11 @@ class ChatManager: ObservableObject {
         } catch {
             errorMessage = "Failed to save AI response: \(error.localizedDescription)"
         }
+        
+        // Generate title after first exchange (when we have 2 messages: user + AI)
+        if chat.messages.count == 2 {
+            await generateChatTitle(for: chat)
+        }
     }
     
     func clearCurrentChat() {
@@ -128,6 +133,45 @@ class ChatManager: ObservableObject {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return "Chat \(formatter.string(from: Date()))"
+    }
+    
+    private func generateChatTitle(for chat: Chat) async {
+        // Only generate title if we have exactly 2 messages (user + AI response)
+        guard chat.messages.count == 2 else { return }
+        
+        let userMessage = chat.messages.first { $0.isFromUser }?.text ?? ""
+        let aiMessage = chat.messages.first { !$0.isFromUser }?.text ?? ""
+        
+        // Create a prompt for title generation
+        let titlePrompt = """
+        Based on this conversation, create a short, descriptive title (maximum 4-5 words) that captures the main topic or question:
+        
+        User: \(userMessage)
+        Assistant: \(aiMessage)
+        
+        Return only the title, nothing else.
+        """
+        
+        // Generate title using Foundation Model
+        let generatedTitle = await foundationService.generateChatResponse(for: titlePrompt)
+        
+        // Clean up the title (remove quotes, extra whitespace, etc.)
+        let cleanTitle = generatedTitle
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "'", with: "")
+        
+        // Update the chat title if we got a valid response
+        if !cleanTitle.isEmpty && cleanTitle.count <= 50 {
+            chat.title = cleanTitle
+            chat.updatedAt = Date()
+            
+            do {
+                try modelContext.save()
+            } catch {
+                errorMessage = "Failed to update chat title: \(error.localizedDescription)"
+            }
+        }
     }
     
     func getAvailabilityStatus() -> SystemLanguageModel.Availability {

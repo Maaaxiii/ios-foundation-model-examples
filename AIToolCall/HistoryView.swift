@@ -12,8 +12,6 @@ struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Chat.updatedAt, order: .reverse) private var chats: [Chat]
     @StateObject private var chatManager = ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)))
-    @State private var showingNewChatAlert = false
-    @State private var newChatTitle = ""
     @State private var showingDeleteConfirmation = false
     @State private var chatToDelete: Chat?
     @State private var searchText = ""
@@ -42,21 +40,10 @@ struct HistoryView: View {
             .searchable(text: $searchText, prompt: "Search chats...")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingNewChatAlert = true }) {
+                    Button(action: { createNewChat() }) {
                         Image(systemName: "plus")
                     }
                 }
-            }
-            .alert("New Chat", isPresented: $showingNewChatAlert) {
-                TextField("Chat Title", text: $newChatTitle)
-                Button("Create") {
-                    createNewChat()
-                }
-                Button("Cancel", role: .cancel) {
-                    newChatTitle = ""
-                }
-            } message: {
-                Text("Enter a title for your new chat")
             }
             .confirmationDialog("Delete Chat", isPresented: $showingDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
@@ -93,7 +80,7 @@ struct HistoryView: View {
                 .padding(.horizontal)
             
             Button("Start New Chat") {
-                showingNewChatAlert = true
+                createNewChat()
             }
             .buttonStyle(.borderedProminent)
         }
@@ -118,10 +105,8 @@ struct HistoryView: View {
     }
     
     private func createNewChat() {
-        let title = newChatTitle.isEmpty ? nil : newChatTitle
-        let newChat = chatManager.createNewChat(title: title)
+        let newChat = chatManager.createNewChat(title: "New Chat")
         loadChat(newChat)
-        newChatTitle = ""
     }
     
     private func loadChat(_ chat: Chat) {
