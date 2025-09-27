@@ -43,11 +43,11 @@ struct ContentView: View {
 
 #Preview("Main App") {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [Item.self, Chat.self, ChatMessage.self], inMemory: true)
 }
 
 #Preview("Main App Dark") {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [Item.self, Chat.self, ChatMessage.self], inMemory: true)
         .preferredColorScheme(.dark)
 }

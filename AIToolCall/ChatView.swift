@@ -6,22 +6,26 @@
 //
 
 import SwiftUI
+import SwiftData
 import FoundationModels
 
 struct ChatView: View {
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var chatManager = ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)))
     @State private var messageText = ""
-    @State private var messages: [ChatMessageItem] = []
-    @StateObject private var foundationService = FoundationModelsService()
-    @State private var showingError = false
     @State private var availabilityStatus: SystemLanguageModel.Availability = .unavailable(.modelNotReady)
+    @State private var showingNewChatAlert = false
+    @State private var newChatTitle = ""
     
     var body: some View {
         NavigationView {
             switch availabilityStatus {
             case .available:
-                chatInterface
-            case .unavailable(.deviceNotEligible):
-               unavailableView(message: "Sorry, you need an Apple Intelligence capable device") 
+                if let currentChat = chatManager.currentChat {
+                    chatInterface(for: currentChat)
+                } else {
+                    noChatSelectedView
+                }
             case .unavailable(.appleIntelligenceNotEnabled):
                 unavailableView(message: "AI Chat is unavailable because Apple Intelligence has not been turned on.")
             case .unavailable(.modelNotReady):
@@ -32,21 +36,51 @@ struct ChatView: View {
         }
         .onAppear {
             checkAvailability()
-            foundationService.prewarm()
+        }
+        .alert("New Chat", isPresented: $showingNewChatAlert) {
+            TextField("Chat Title", text: $newChatTitle)
+            Button("Create") {
+                createNewChat()
+            }
+            Button("Cancel", role: .cancel) {
+                newChatTitle = ""
+            }
+        } message: {
+            Text("Enter a title for your new chat")
         }
     }
     
-    private var chatInterface: some View {
+    private func chatInterface(for chat: Chat) -> some View {
         VStack {
+            // Chat Header
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(chat.title)
+                        .font(.headline)
+                    Text("\(chat.messages.count) messages")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button("New Chat") {
+                    showingNewChatAlert = true
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+            
+            Divider()
+            
             // Messages List
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(messages) { message in
+                    ForEach(chat.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
                         MessageBubble(message: message)
                     }
                     
                     // Loading indicator
-                    if foundationService.isLoading {
+                    if chatManager.isLoading {
                         HStack {
                             ProgressView()
                                 .scaleEffect(0.8)
@@ -63,7 +97,7 @@ struct ChatView: View {
             // Input Area
             VStack(spacing: 8) {
                 // Error message
-                if let errorMessage = foundationService.errorMessage {
+                if let errorMessage = chatManager.errorMessage {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
@@ -72,7 +106,7 @@ struct ChatView: View {
                             .foregroundColor(.secondary)
                         Spacer()
                         Button("Dismiss") {
-                            foundationService.errorMessage = nil
+                            chatManager.errorMessage = nil
                         }
                         .font(.caption)
                         .foregroundColor(.blue)
@@ -90,13 +124,13 @@ struct ChatView: View {
                         .onSubmit {
                             sendMessage()
                         }
-                        .disabled(foundationService.isLoading)
+                        .disabled(chatManager.isLoading)
                     
                     Button(action: sendMessage) {
-                        Image(systemName: foundationService.isLoading ? "stop.circle.fill" : "paperplane.fill")
-                            .foregroundColor(foundationService.isLoading ? .red : .blue)
+                        Image(systemName: chatManager.isLoading ? "stop.circle.fill" : "paperplane.fill")
+                            .foregroundColor(chatManager.isLoading ? .red : .blue)
                     }
-                    .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !foundationService.isLoading)
+                    .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !chatManager.isLoading)
                 }
             }
             .padding()
@@ -105,11 +139,51 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: clearChat) {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
+                HStack {
+                    Button(action: clearChat) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .disabled(chat.messages.isEmpty)
+                    
+                    Button(action: { showingNewChatAlert = true }) {
+                        Image(systemName: "plus")
+                            .foregroundColor(.blue)
+                    }
                 }
-                .disabled(messages.isEmpty)
+            }
+        }
+    }
+    
+    private var noChatSelectedView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "message.badge.plus")
+                .font(.system(size: 60))
+                .foregroundColor(.gray)
+            
+            Text("No Chat Selected")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Text("Start a new conversation or select an existing chat from the History tab")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Button("Start New Chat") {
+                showingNewChatAlert = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .navigationTitle("AI Chat")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showingNewChatAlert = true }) {
+                    Image(systemName: "plus")
+                }
             }
         }
     }
@@ -136,60 +210,33 @@ struct ChatView: View {
     }
     
     private func checkAvailability() {
-        availabilityStatus = foundationService.getAvailabilityStatus()
+        availabilityStatus = chatManager.getAvailabilityStatus()
+    }
+    
+    private func createNewChat() {
+        let title = newChatTitle.isEmpty ? nil : newChatTitle
+        let _ = chatManager.createNewChat(title: title)
+        newChatTitle = ""
     }
     
     private func sendMessage() {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
-        let newMessage = ChatMessageItem(
-            text: text,
-            isFromUser: true,
-            timestamp: Date()
-        )
-        
-        withAnimation(.easeInOut(duration: 0.3)) {
-            messages.append(newMessage)
-        }
-        
         messageText = ""
         
-        // Generate AI response using Foundation Models
         Task {
-            let aiResponseText = await foundationService.generateChatResponse(for: text)
-            
-            await MainActor.run {
-                let aiResponse = ChatMessageItem(
-                    text: aiResponseText,
-                    isFromUser: false,
-                    timestamp: Date()
-                )
-                
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    messages.append(aiResponse)
-                }
-            }
+            await chatManager.sendMessage(text)
         }
     }
     
     private func clearChat() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            messages.removeAll()
-            foundationService.clearChat()
-        }
+        chatManager.clearCurrentChat()
     }
 }
 
-struct ChatMessageItem: Identifiable {
-    let id = UUID()
-    let text: String
-    let isFromUser: Bool
-    let timestamp: Date
-}
-
 struct MessageBubble: View {
-    let message: ChatMessageItem
+    let message: ChatMessage
     
     var body: some View {
         HStack {
@@ -221,11 +268,5 @@ struct MessageBubble: View {
 
 #Preview("Chat View") {
     ChatView()
-}
-
-#Preview("Chat View with Messages") {
-    ChatView()
-        .onAppear {
-            // Add sample messages for preview
-        }
+        .modelContainer(for: [Chat.self, ChatMessage.self], inMemory: true)
 }

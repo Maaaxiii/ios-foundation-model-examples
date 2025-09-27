@@ -10,112 +10,200 @@ import SwiftData
 
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \Chat.updatedAt, order: .reverse) private var chats: [Chat]
+    @StateObject private var chatManager = ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)))
+    @State private var showingNewChatAlert = false
+    @State private var newChatTitle = ""
+    @State private var showingDeleteConfirmation = false
+    @State private var chatToDelete: Chat?
     @State private var searchText = ""
-    
-    var filteredItems: [Item] {
+
+    var filteredChats: [Chat] {
         if searchText.isEmpty {
-            return items.sorted { $0.timestamp > $1.timestamp }
+            return chats
         } else {
-            return items.filter { item in
-                item.timestamp.formatted().localizedCaseInsensitiveContains(searchText)
-            }.sorted { $0.timestamp > $1.timestamp }
+            return chats.filter { chat in
+                chat.title.localizedCaseInsensitiveContains(searchText) ||
+                chat.previewText.localizedCaseInsensitiveContains(searchText)
+            }
         }
     }
-    
+
     var body: some View {
         NavigationView {
             VStack {
-                if filteredItems.isEmpty {
-                    VStack(spacing: 20) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        
-                        Text("No History Yet")
-                            .font(.title2)
-                            .fontWeight(.medium)
-                        
-                        Text("Your conversation history will appear here")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if filteredChats.isEmpty {
+                    emptyStateView
                 } else {
-                    List {
-                        ForEach(filteredItems) { item in
-                            HistoryRow(item: item)
-                        }
-                        .onDelete(perform: deleteItems)
-                    }
-                    .searchable(text: $searchText, prompt: "Search history...")
+                    chatListView
                 }
             }
-            .navigationTitle("History")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Chat History")
+            .searchable(text: $searchText, prompt: "Search chats...")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                    Button(action: { showingNewChatAlert = true }) {
+                        Image(systemName: "plus")
+                    }
                 }
             }
+            .alert("New Chat", isPresented: $showingNewChatAlert) {
+                TextField("Chat Title", text: $newChatTitle)
+                Button("Create") {
+                    createNewChat()
+                }
+                Button("Cancel", role: .cancel) {
+                    newChatTitle = ""
+                }
+            } message: {
+                Text("Enter a title for your new chat")
+            }
+            .confirmationDialog("Delete Chat", isPresented: $showingDeleteConfirmation) {
+                Button("Delete", role: .destructive) {
+                    if let chat = chatToDelete {
+                        deleteChat(chat)
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    chatToDelete = nil
+                }
+            } message: {
+                Text("Are you sure you want to delete this chat? This action cannot be undone.")
+            }
+            .onAppear {
+                // ChatManager is already initialized
+            }
         }
     }
     
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(filteredItems[index])
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "message")
+                .font(.system(size: 60))
+                .foregroundColor(.gray)
+            
+            Text("No Chats Yet")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Text("Start a new conversation to see your chat history here")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Button("Start New Chat") {
+                showingNewChatAlert = true
             }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+    }
+    
+    private var chatListView: some View {
+        List {
+            ForEach(filteredChats) { chat in
+                ChatRowView(
+                    chat: chat,
+                    onTap: { loadChat(chat) },
+                    onDelete: { 
+                        chatToDelete = chat
+                        showingDeleteConfirmation = true
+                    },
+                    onRename: { renameChat(chat) }
+                )
+            }
+        }
+        .listStyle(PlainListStyle())
+    }
+    
+    private func createNewChat() {
+        let title = newChatTitle.isEmpty ? nil : newChatTitle
+        let newChat = chatManager.createNewChat(title: title)
+        loadChat(newChat)
+        newChatTitle = ""
+    }
+    
+    private func loadChat(_ chat: Chat) {
+        chatManager.loadChat(chat)
+        // Navigate to ChatView - this will be handled by the TabView
+        // The ChatView will automatically load the current chat from ChatManager
+    }
+    
+    private func deleteChat(_ chat: Chat) {
+        chatManager.deleteChat(chat)
+        chatToDelete = nil
+    }
+    
+    private func renameChat(_ chat: Chat) {
+        // This could be implemented with another alert or inline editing
+        // For now, we'll use a simple approach
+        let alert = UIAlertController(title: "Rename Chat", message: "Enter new title", preferredStyle: .alert)
+        alert.addTextField { textField in
+            textField.text = chat.title
+        }
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { _ in
+            if let newTitle = alert.textFields?.first?.text, !newTitle.isEmpty {
+                chatManager.updateChatTitle(chat, newTitle: newTitle)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            window.rootViewController?.present(alert, animated: true)
         }
     }
 }
 
-struct HistoryRow: View {
-    let item: Item
+struct ChatRowView: View {
+    let chat: Chat
+    let onTap: () -> Void
+    let onDelete: () -> Void
+    let onRename: () -> Void
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Conversation")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+        Button(action: onTap) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(chat.title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Text(chat.previewText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    
+                    Text(chat.updatedAt, style: .relative)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
                 
-                Text(item.timestamp, format: Date.FormatStyle(date: .abbreviated, time: .shortened))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                Image(systemName: "message.circle")
-                    .font(.title2)
-                    .foregroundColor(.blue)
+                Spacer()
                 
-                Text("View")
-                    .font(.caption)
-                    .foregroundColor(.blue)
+                VStack(spacing: 8) {
+                    Button(action: onRename) {
+                        Image(systemName: "pencil")
+                            .foregroundColor(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 8)
+        .buttonStyle(.plain)
     }
 }
 
-#Preview("History View Empty") {
+#Preview("History View") {
     HistoryView()
-        .modelContainer(for: Item.self, inMemory: true)
-}
-
-#Preview("History View with Data") {
-    HistoryView()
-        .modelContainer(for: Item.self, inMemory: true)
-        .onAppear {
-            // Add sample data for preview
-            let context = ModelContext(try! ModelContainer(for: Item.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
-            for i in 1...10 {
-                let item = Item(timestamp: Date().addingTimeInterval(TimeInterval(-i * 3600)))
-                context.insert(item)
-            }
-        }
+        .modelContainer(for: [Chat.self, ChatMessage.self], inMemory: true)
 }
