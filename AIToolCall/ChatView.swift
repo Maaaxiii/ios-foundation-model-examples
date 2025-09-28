@@ -233,6 +233,6 @@ struct MessageBubble: View {
 }
 
 #Preview("Chat View") {
-    ChatView(chatManager: ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self))))
+    ChatView(chatManager: ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)), toolManager: ToolManager()))
         .modelContainer(for: [Chat.self, ChatMessage.self], inMemory: true)
 }

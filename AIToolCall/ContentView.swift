@@ -13,6 +13,7 @@ struct ContentView: View {
     @Query private var items: [Item]
     @State private var selectedTab = 0
     @State private var sharedChatManager: ChatManager?
+    @StateObject private var sharedToolManager = ToolManager()
     #if DEBUG
     @StateObject private var hotReloadHelper = HotReloadHelper()
     #endif
@@ -35,7 +36,9 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    SettingsView()
+                    SettingsView(toolManager: sharedToolManager) {
+                        chatManager.updateTools()
+                    }
                         .tabItem {
                             Image(systemName: "gear")
                             Text("Settings")
@@ -49,7 +52,7 @@ struct ContentView: View {
                 // Loading state while ChatManager is being initialized
                 ProgressView("Initializing...")
                     .onAppear {
-                        sharedChatManager = ChatManager(modelContext: modelContext)
+                        sharedChatManager = ChatManager(modelContext: modelContext, toolManager: sharedToolManager)
                     }
             }
         }

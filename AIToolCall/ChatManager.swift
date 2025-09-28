@@ -18,10 +18,16 @@ class ChatManager: ObservableObject {
     
     private let modelContext: ModelContext
     private let foundationService: FoundationModelsService
+    private let toolManager: ToolManager
     
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, toolManager: ToolManager) {
         self.modelContext = modelContext
-        self.foundationService = FoundationModelsService()
+        self.toolManager = toolManager
+        self.foundationService = FoundationModelsService(tools: toolManager.availableTools)
+    }
+    
+    func updateTools() {
+        foundationService.updateTools(toolManager.availableTools)
     }
     
     // MARK: - Chat Management

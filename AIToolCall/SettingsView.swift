@@ -13,7 +13,11 @@ struct SettingsView: View {
     @AppStorage("isDarkModeEnabled") private var isDarkModeEnabled = false
     @AppStorage("selectedLanguage") private var selectedLanguage = "English"
     
+    @ObservedObject var toolManager: ToolManager
+    var onToolToggle: (() -> Void)?
+    
     private let languages = ["English", "Spanish", "French", "German", "Italian"]
+    private let availableTools = ["getWeather", "getTime", "memory"]
     
     var body: some View {
         NavigationView {
@@ -57,6 +61,34 @@ struct SettingsView: View {
                             ForEach(languages, id: \.self) { language in
                                 Text(language).tag(language)
                             }
+                        }
+                    }
+                }
+                
+                // Tools Section
+                Section("AI Tools") {
+                    ForEach(availableTools, id: \.self) { toolName in
+                        HStack {
+                            Image(systemName: toolManager.getToolIcon(toolName))
+                                .foregroundColor(.blue)
+                            
+                            VStack(alignment: .leading) {
+                                Text(toolName.capitalized)
+                                    .font(.headline)
+                                Text(toolManager.getToolDescription(toolName))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: Binding(
+                                get: { toolManager.isToolEnabled(toolName) },
+                                set: { _ in 
+                                    toolManager.toggleTool(toolName)
+                                    onToolToggle?()
+                                }
+                            ))
                         }
                     }
                 }
@@ -124,10 +156,10 @@ struct SettingsView: View {
 }
 
 #Preview("Settings View") {
-    SettingsView()
+    SettingsView(toolManager: ToolManager(), onToolToggle: nil)
 }
 
 #Preview("Settings View Dark") {
-    SettingsView()
+    SettingsView(toolManager: ToolManager(), onToolToggle: nil)
         .preferredColorScheme(.dark)
 }

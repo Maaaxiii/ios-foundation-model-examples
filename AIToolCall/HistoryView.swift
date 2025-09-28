@@ -278,6 +278,6 @@ struct ChatRowView: View {
 }
 
 #Preview("History View") {
-    HistoryView(chatManager: ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self))), selectedTab: .constant(1))
+    HistoryView(chatManager: ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)), toolManager: ToolManager()), selectedTab: .constant(1))
         .modelContainer(for: [Chat.self, ChatMessage.self], inMemory: true)
 }

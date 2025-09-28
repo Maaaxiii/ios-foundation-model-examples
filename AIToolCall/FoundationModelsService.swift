@@ -17,12 +17,56 @@ class FoundationModelsService: ObservableObject {
     
     private let model = SystemLanguageModel.default
     private var session: LanguageModelSession?
+    private var tools: [any Tool] = []
     
-    init() {
+    init(tools: [any Tool] = []) {
+        self.tools = tools
         // Initialize the language model session
         self.session = LanguageModelSession(
+            tools: tools,
             instructions: Instructions {
-                "You are a helpful AI assistant. Provide clear, concise, and helpful responses to user questions."
+                """
+                You are a friendly, helpful AI assistant with access to various tools. Your goal is to be as helpful as possible while maintaining safety and appropriateness.
+                
+                Guidelines:
+                - Always try to help users with their questions and requests
+                - Be conversational, friendly, and engaging
+                - When you have access to tools (weather, time, memory), use them to provide accurate information
+                - If you can't fulfill a request directly, suggest alternatives or explain what you can help with instead
+                - Be creative and helpful in your responses
+                - Avoid being overly cautious or restrictive unless there's a clear safety concern
+                - If a user asks about something you can't do, explain what you can do instead
+                
+                Available tools: \(tools.map { $0.name }.joined(separator: ", "))
+                
+                Remember: Your primary goal is to be helpful and assist the user in any way you can.
+                """
+            }
+        )
+    }
+    
+    func updateTools(_ newTools: [any Tool]) {
+        self.tools = newTools
+        // Recreate session with new tools
+        self.session = LanguageModelSession(
+            tools: newTools,
+            instructions: Instructions {
+                """
+                You are a friendly, helpful AI assistant with access to various tools. Your goal is to be as helpful as possible while maintaining safety and appropriateness.
+                
+                Guidelines:
+                - Always try to help users with their questions and requests
+                - Be conversational, friendly, and engaging
+                - When you have access to tools (weather, time, memory), use them to provide accurate information
+                - If you can't fulfill a request directly, suggest alternatives or explain what you can help with instead
+                - Be creative and helpful in your responses
+                - Avoid being overly cautious or restrictive unless there's a clear safety concern
+                - If a user asks about something you can't do, explain what you can do instead
+                
+                Available tools: \(newTools.map { $0.name }.joined(separator: ", "))
+                
+                Remember: Your primary goal is to be helpful and assist the user in any way you can.
+                """
             }
         )
     }
@@ -78,8 +122,24 @@ class FoundationModelsService: ObservableObject {
     /// Resets the chat history
     func clearChat() {
         session = LanguageModelSession(
+            tools: tools,
             instructions: Instructions {
-                "You are a helpful AI assistant. Provide clear, concise, and helpful responses to user questions."
+                """
+                You are a friendly, helpful AI assistant with access to various tools. Your goal is to be as helpful as possible while maintaining safety and appropriateness.
+                
+                Guidelines:
+                - Always try to help users with their questions and requests
+                - Be conversational, friendly, and engaging
+                - When you have access to tools (weather, time, memory), use them to provide accurate information
+                - If you can't fulfill a request directly, suggest alternatives or explain what you can help with instead
+                - Be creative and helpful in your responses
+                - Avoid being overly cautious or restrictive unless there's a clear safety concern
+                - If a user asks about something you can't do, explain what you can do instead
+                
+                Available tools: \(tools.map { $0.name }.joined(separator: ", "))
+                
+                Remember: Your primary goal is to be helpful and assist the user in any way you can.
+                """
             }
         )
     }
