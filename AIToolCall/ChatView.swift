@@ -39,32 +39,6 @@ struct ChatView: View {
     
     private func chatInterface(for chat: Chat) -> some View {
         VStack {
-            // Chat Header
-            HStack {
-                VStack(alignment: .leading) {
-                    HStack {
-                        Text(chat.title)
-                            .font(.headline)
-                        if chat.messages.count == 2 && (chat.title.hasPrefix("Chat ") || chat.title == "New Chat") {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                        }
-                    }
-                    Text("\(chat.messages.count) messages")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                Button("New Chat") {
-                    createNewChat()
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            
-            Divider()
-            
             // Messages List
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
@@ -128,7 +102,7 @@ struct ChatView: View {
             }
             .padding()
         }
-        .navigationTitle("AI Chat")
+        .navigationTitle(chat.title)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -222,7 +196,8 @@ struct ChatView: View {
     }
     
     private func clearChat() {
-        chatManager.clearCurrentChat()
+        guard let currentChat = chatManager.currentChat else { return }
+        chatManager.deleteChat(currentChat)
     }
 }
 

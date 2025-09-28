@@ -12,8 +12,6 @@ struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Chat.updatedAt, order: .reverse) private var chats: [Chat]
     @ObservedObject var chatManager: ChatManager
-    @State private var showingDeleteConfirmation = false
-    @State private var chatToDelete: Chat?
     @State private var searchText = ""
     @State private var selectedChats: Set<Chat.ID> = []
     @State private var isEditMode = false
@@ -106,18 +104,6 @@ struct HistoryView: View {
                     }
                 }
             }
-            .confirmationDialog("Delete Chat", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    if let chat = chatToDelete {
-                        deleteChat(chat)
-                    }
-                }
-                Button("Cancel", role: .cancel) {
-                    chatToDelete = nil
-                }
-            } message: {
-                Text("Are you sure you want to delete this chat? This action cannot be undone.")
-            }
             .onAppear {
                 // ChatManager is now passed from ContentView
             }
@@ -170,8 +156,7 @@ struct HistoryView: View {
                         )
                         .swipeActions(edge: .trailing, allowsFullSwipe: !isEditMode) {
                             Button("Delete", role: .destructive) {
-                                chatToDelete = chat
-                                showingDeleteConfirmation = true
+                                deleteChat(chat)
                             }
                             
                             Button("Rename") {
@@ -210,7 +195,6 @@ struct HistoryView: View {
     
     private func deleteChat(_ chat: Chat) {
         chatManager.deleteChat(chat)
-        chatToDelete = nil
     }
     
     private func renameChat(_ chat: Chat) {
