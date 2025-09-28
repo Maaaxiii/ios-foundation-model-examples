@@ -11,7 +11,7 @@ import FoundationModels
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var chatManager = ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self)))
+    @ObservedObject var chatManager: ChatManager
     @State private var messageText = ""
     @State private var availabilityStatus: SystemLanguageModel.Availability = .unavailable(.modelNotReady)
     
@@ -258,6 +258,6 @@ struct MessageBubble: View {
 }
 
 #Preview("Chat View") {
-    ChatView()
+    ChatView(chatManager: ChatManager(modelContext: ModelContext(try! ModelContainer(for: Chat.self, ChatMessage.self))))
         .modelContainer(for: [Chat.self, ChatMessage.self], inMemory: true)
 }

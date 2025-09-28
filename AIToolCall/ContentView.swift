@@ -11,33 +11,48 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [Item]
+    @State private var selectedTab = 0
+    @State private var sharedChatManager: ChatManager?
     #if DEBUG
     @StateObject private var hotReloadHelper = HotReloadHelper()
     #endif
 
     var body: some View {
-        TabView {
-            ChatView()
-                .tabItem {
-                    Image(systemName: "message")
-                    Text("Chat")
+        Group {
+            if let chatManager = sharedChatManager {
+                TabView(selection: $selectedTab) {
+                    ChatView(chatManager: chatManager)
+                        .tabItem {
+                            Image(systemName: "message")
+                            Text("Chat")
+                        }
+                        .tag(0)
+                    
+                    HistoryView(chatManager: chatManager, selectedTab: $selectedTab)
+                        .tabItem {
+                            Image(systemName: "clock.arrow.circlepath")
+                            Text("History")
+                        }
+                        .tag(1)
+                    
+                    SettingsView()
+                        .tabItem {
+                            Image(systemName: "gear")
+                            Text("Settings")
+                        }
+                        .tag(2)
                 }
-            
-            HistoryView()
-                .tabItem {
-                    Image(systemName: "clock.arrow.circlepath")
-                    Text("History")
-                }
-            
-            SettingsView()
-                .tabItem {
-                    Image(systemName: "gear")
-                    Text("Settings")
-                }
+                #if DEBUG
+                .id(hotReloadHelper.reloadTrigger)
+                #endif
+            } else {
+                // Loading state while ChatManager is being initialized
+                ProgressView("Initializing...")
+                    .onAppear {
+                        sharedChatManager = ChatManager(modelContext: modelContext)
+                    }
+            }
         }
-        #if DEBUG
-        .id(hotReloadHelper.reloadTrigger)
-        #endif
     }
 }
 
